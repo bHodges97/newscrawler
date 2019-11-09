@@ -1,33 +1,33 @@
 import tweepy as tw
 from keys import *
 import newspaper
-from newspaper import Article
 import os
 import time
 import threading
+import csv
 from queue import Queue
-q=Queue()
+from newspaper import Article
+from newspaper import news_pool
 
 filepath = "../news_outlets.txt"
 downloadpath = "./data"
+skipto = 328029 #if script was interupted, use this to skip over parsed tweets
+batchsize = 100 #100 tweets ber request (api limit)
+
 auth = tw.OAuthHandler(key, secret)
 api = tw.API(auth)
-import csv
 
-#skipto = 0
-
-if not os.path.exists(downloadpath):
-    os.makedirs(downloadpath)
-print("reading tweets files")
+#print("reading tweets files")
 #with open(filepath,"r") as f:
 #    for i,line in enumerate(f):
 #        pass
 #    linecount = i+1
 linecount = 39695156
 print(linecount, "tweets to processes")
-skipto = 236430
 
-batchsize = 100
+q=Queue()
+if not os.path.exists(downloadpath):
+    os.makedirs(downloadpath)
 
 def flushQueue():
     while q.qsize():
@@ -36,6 +36,7 @@ def flushQueue():
             writer = csv.writer(csvf,quoting=csv.QUOTE_ALL)
             writer.writerow(fields)
             print("Article added successfully:", fields[3])
+
 
 def addtweet(tweet):
     #tweet = api.get_status(tweetid)
@@ -67,6 +68,7 @@ def gettweets(tweets):
         return
 
     print("Retrieved ",len(tweets), "tweets")
+    stime = time.time()
     threads = []
     for tweet in tweets:
         t = threading.Thread(target=addtweet, args = (tweet,) )
@@ -74,8 +76,9 @@ def gettweets(tweets):
         t.start()
     for t in threads:
         t.join()                
-        
+    
     flushQueue()
+    print(time.time()-stime)
 
 with open(filepath,"r") as f:
     bulkids = []
@@ -93,3 +96,4 @@ with open(filepath,"r") as f:
         if os.path.exists("stop"):
             print(idx)
             exit()
+
