@@ -3,19 +3,21 @@ from keys import *
 import newspaper
 import os
 import time
-import threading
 import csv
-from queue import Queue
 from newspaper import Article
-from newspaper import news_pool
+from multiprocessing import Pool,Queue
+import logging
+logging.basicConfig(filename="log.log", level=logging.INFO)
 
 filepath = "../news_outlets.txt"
 downloadpath = "./data"
-skipto = 328029 #if script was interupted, use this to skip over parsed tweets
+skipto = 499#809319 #if script was interupted, use this to skip over parsed tweets
 batchsize = 100 #100 tweets ber request (api limit)
+processpoolsize = 10 #i/o intensive
 
 auth = tw.OAuthHandler(key, secret)
 api = tw.API(auth)
+blacklist = ["https://twitter.com/i/","https://youtube.com"]
 
 #print("reading tweets files")
 #with open(filepath,"r") as f:
@@ -23,77 +25,69 @@ api = tw.API(auth)
 #        pass
 #    linecount = i+1
 linecount = 39695156
-print(linecount, "tweets to processes")
+print(linecount, "tweets to process")
 
-q=Queue()
 if not os.path.exists(downloadpath):
     os.makedirs(downloadpath)
 
-def flushQueue():
-    while q.qsize():
-        filename,fields = q.get()
-        with open(filename, 'a') as csvf:
-            writer = csv.writer(csvf,quoting=csv.QUOTE_ALL)
-            writer.writerow(fields)
-            print("Article added successfully:", fields[3])
-
-
 def addtweet(tweet):
-    #tweet = api.get_status(tweetid)
-    filename = downloadpath + "/" + tweet.author.id_str
     if len(tweet.entities["urls"]) == 1:
         link = tweet.entities["urls"][0]
         expanded = link["expanded_url"]
-        if expanded.startswith("https://twitter.com/i/"):
-            #print("Links is twitter status! Skipping")
-            return
-        try:
-            article = Article(expanded)
-            article.download()
-            article.parse()
-            fields = [tweetid,tweet.created_at,expanded,article.title,article.authors,article.text]
-            q.put((filename,fields))
-        except (newspaper.article.ArticleException,ValueError) as e:
-            pass
-            #print(e)
-    else:
-        pass
-        #print("No links found!");
+        if not any([expanded.startswith(x) for x in blacklist]):
+            try:
+                article = Article(expanded)
+                article.download()
+                article.parse()
+                fields = [tweet.id_str,tweet.created_at,expanded,article.title,article.authors,article.text]
+                return (tweet.user.id_str,fields)
+            except (newspaper.article.ArticleException,ValueError) as e:
+                pass
+    return None
 
-def gettweets(tweets):
+def gettweets(tweets,pool,q):
     try:
         tweets = api.statuses_lookup(bulkids)
+        print("Retrieved ",len(tweets), "tweets")
     except tw.TweepError as e:
-        time.sleep(0.1)#avoid rate limiting
+        time.sleep(15)#avoid rate limiting
+        logging.exception("twitter api")
         return
+    try:
+        stime = time.time()
+        articles = [x for x in pool.imap_unordered(addtweet,tweets) if x]
+        for user,fields in articles:
+            filename = downloadpath + "/" + user
+            with open(filename, 'a') as csvf:
+                writer = csv.writer(csvf,quoting=csv.QUOTE_ALL)
+                writer.writerow(fields)
+        print(f"Parse complete. Writing {len(articles)} entries to file. Time taken:",time.time()-stime)
+                 
+    except Exception as e:
+        print(e)
+        logging.exception("pool error")
 
-    print("Retrieved ",len(tweets), "tweets")
-    stime = time.time()
-    threads = []
-    for tweet in tweets:
-        t = threading.Thread(target=addtweet, args = (tweet,) )
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join()                
-    
-    flushQueue()
-    print(time.time()-stime)
 
-with open(filepath,"r") as f:
-    bulkids = []
-    for idx,line in enumerate(f):
-        if idx < skipto:
-            continue
-        tweetid = line[:-1]
-        bulkids.append(tweetid)
+if __name__ == "__main__":
+    pool = Pool(processes=processpoolsize)
+    q = Queue()
+    with open(filepath,"r") as f:
+        bulkids = []
+        for idx,line in enumerate(f):
+            if idx < skipto:
+                continue
+            tweetid = line[:-1]
+            bulkids.append(tweetid)
 
-        if len(bulkids) == batchsize:
-            gettweets(bulkids)
-            bulkids = []
-            print(f"Progress {idx}/{linecount}" ,f"({idx/linecount:.2f})")
-
-        if os.path.exists("stop"):
-            print(idx)
-            exit()
+            if len(bulkids) == batchsize:
+                gettweets(bulkids,pool,q)
+                bulkids = []
+                progress =f"Progress {idx}/{linecount} ({idx/linecount:.2f})" 
+                print(progress)
+                with open("status","w") as f:
+                    f.write(progress)
+                
+            if os.path.exists("stop"):
+                print(idx)
+                exit()
 
