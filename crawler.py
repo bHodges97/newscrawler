@@ -5,15 +5,15 @@ import os
 import time
 import csv
 from newspaper import Article
-from multiprocessing import Queue
+from multiprocessing import Pool
 import logging
 logging.basicConfig(filename="log.log", level=logging.INFO)
 
 filepath = "../news_outlets.txt"
 downloadpath = "./data2"
-skipto =   10000000 #if script was interupted, use this to skip over parsed tweets
+skipto =   10055599 #if script was interupted, use this to skip over parsed tweets
 batchsize = 100 #100 tweets ber request (api limit)
-processpoolsize = 10 #i/o intensive
+processpoolsize = 20 #i/o intensive
 
 auth = tw.OAuthHandler(key, secret)
 api = tw.API(auth)
