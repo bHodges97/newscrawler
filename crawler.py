@@ -5,13 +5,13 @@ import os
 import time
 import csv
 from newspaper import Article
-from multiprocessing import Pool,Queue
+from multiprocessing import Queue
 import logging
 logging.basicConfig(filename="log.log", level=logging.INFO)
 
 filepath = "../news_outlets.txt"
-downloadpath = "./data"
-skipto = 499#809319 #if script was interupted, use this to skip over parsed tweets
+downloadpath = "./data2"
+skipto =   10000000 #if script was interupted, use this to skip over parsed tweets
 batchsize = 100 #100 tweets ber request (api limit)
 processpoolsize = 10 #i/o intensive
 
@@ -45,7 +45,7 @@ def addtweet(tweet):
                 pass
     return None
 
-def gettweets(tweets,pool,q):
+def gettweets(tweets):
     try:
         tweets = api.statuses_lookup(bulkids)
         print("Retrieved ",len(tweets), "tweets")
@@ -70,7 +70,6 @@ def gettweets(tweets,pool,q):
 
 if __name__ == "__main__":
     pool = Pool(processes=processpoolsize)
-    q = Queue()
     with open(filepath,"r") as f:
         bulkids = []
         for idx,line in enumerate(f):
@@ -80,7 +79,7 @@ if __name__ == "__main__":
             bulkids.append(tweetid)
 
             if len(bulkids) == batchsize:
-                gettweets(bulkids,pool,q)
+                gettweets(bulkids)
                 bulkids = []
                 progress =f"Progress {idx}/{linecount} ({idx/linecount:.2f})" 
                 print(progress)
