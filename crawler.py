@@ -17,7 +17,7 @@ processpoolsize = 4
 
 auth = tw.OAuthHandler(key, secret)
 api = tw.API(auth)
-blacklist = ["https://twitter.com/i/","https://youtube.com"]
+blacklist = ["https://twitter.com","https://youtube.com"]
 
 #print("reading tweets files")
 #with open(filepath,"r") as f:
