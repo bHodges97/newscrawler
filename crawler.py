@@ -10,10 +10,10 @@ import logging
 logging.basicConfig(filename="log.log", level=logging.INFO)
 
 filepath = "../news_outlets.txt"
-downloadpath = "./data2"
-skipto =   10055599 #if script was interupted, use this to skip over parsed tweets
+downloadpath = "./data"
+skipto =  0 #if script was interupted, use this to skip over parsed tweets
 batchsize = 100 #100 tweets ber request (api limit)
-processpoolsize = 20 #i/o intensive
+processpoolsize = 4
 
 auth = tw.OAuthHandler(key, secret)
 api = tw.API(auth)
@@ -46,13 +46,14 @@ def addtweet(tweet):
     return None
 
 def gettweets(tweets):
-    try:
-        tweets = api.statuses_lookup(bulkids)
-        print("Retrieved ",len(tweets), "tweets")
-    except tw.TweepError as e:
-        time.sleep(15)#avoid rate limiting
-        logging.exception("twitter api")
-        return
+    while True:
+        try:
+            tweets = api.statuses_lookup(bulkids)
+            print("Retrieved ",len(tweets), "tweets")
+            break
+        except tw.TweepError as e:
+            time.sleep(60)#avoid rate limiting
+            logging.exception("twitter api")
     try:
         stime = time.time()
         articles = [x for x in pool.imap_unordered(addtweet,tweets) if x]
