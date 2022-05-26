@@ -62,7 +62,7 @@ systemd-python==234
 tinysegmenter==0.3
 tldextract==2.2.2
 tweepy==3.8.0
-Twisted==17.9.0
+Twisted==22.4.0
 ufw==0.36
 unattended-upgrades==0.1
 urllib3==1.25.6
